@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 const CURRENCIES = [
   { id: 'VES', name: 'Bolívares', symbol: 'Bs', icon: 'account_balance_wallet', desc: 'Moneda Local' },
   { id: 'BCV', name: 'Dólar BCV', symbol: '$', icon: 'account_balance', desc: 'Tasa Oficial' },
+  { id: 'EURO', name: 'Euro BCV', symbol: '€', icon: 'euro', desc: 'Tasa Oficial' },
   { id: 'PARALELO', name: 'Dólar Paralelo', symbol: '$', icon: 'trending_up', desc: 'Mercado No Oficial' },
   { id: 'BINANCE', name: 'Tether (Binance)', symbol: 'USDT', icon: 'currency_exchange', desc: 'Tasa P2P' },
 ];
@@ -13,6 +14,7 @@ export default function CurrencyApp() {
   const [activeTab, setActiveTab] = useState<'PANEL' | 'CASHEA'>('PANEL');
   const [rates, setRates] = useState<Record<string, number>>({
     BCV: 36.25,
+    EURO: 39.15,
     PARALELO: 39.50,
     BINANCE: 670,
     VES: 1,
@@ -21,17 +23,20 @@ export default function CurrencyApp() {
   useEffect(() => {
     async function fetchRates() {
       try {
-        const [oficialRes, paraleloRes] = await Promise.all([
+        const [oficialRes, paraleloRes, euroRes] = await Promise.all([
           fetch('https://ve.dolarapi.com/v1/dolares/oficial'),
-          fetch('https://ve.dolarapi.com/v1/dolares/paralelo')
+          fetch('https://ve.dolarapi.com/v1/dolares/paralelo'),
+          fetch('https://ve.dolarapi.com/v1/euros/oficial')
         ]);
-        if (oficialRes.ok && paraleloRes.ok) {
+        if (oficialRes.ok && paraleloRes.ok && euroRes.ok) {
           const oficial = await oficialRes.json();
           const paralelo = await paraleloRes.json();
+          const euro = await euroRes.json();
           setRates(prev => ({
             ...prev,
             BCV: oficial.promedio,
-            PARALELO: paralelo.promedio
+            PARALELO: paralelo.promedio,
+            EURO: euro.promedio
           }));
         }
       } catch (error) {
@@ -45,7 +50,10 @@ export default function CurrencyApp() {
     <>
       <header className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-50 shadow-sm">
         <div className="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
-          <div className="text-xl font-bold tracking-tight text-blue-950 dark:text-white font-headline">Arquitectura Financiera</div>
+          <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-blue-950 dark:text-white font-headline">
+            <span className="material-symbols-outlined text-blue-700 dark:text-blue-400">sync_alt</span>
+            Monitor Cambiario Vzla
+          </div>
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-8">
               <button 
@@ -104,12 +112,12 @@ function DashboardView({ title, rates, hideMarketAnalysis = false }: { title: st
   const [inputValue, setInputValue] = useState<string>('1.00');
 
   const baseBs = useMemo(() => {
-    let raw = inputValue.replace(/\./g, '').replace(/,/g, '.');
-    const val = parseFloat(raw);
+    const val = parseFloat(inputValue);
     if (isNaN(val)) return 0;
     
     switch (activeCurrency) {
       case 'BCV': return val * rates.BCV;
+      case 'EURO': return val * rates.EURO;
       case 'PARALELO': return val * rates.PARALELO;
       case 'BINANCE': return val * rates.BINANCE;
       case 'VES':
@@ -128,6 +136,7 @@ function DashboardView({ title, rates, hideMarketAnalysis = false }: { title: st
     let targetVal = 0;
     switch (currencyId) {
       case 'BCV': targetVal = baseBs / rates.BCV; break;
+      case 'EURO': targetVal = baseBs / rates.EURO; break;
       case 'PARALELO': targetVal = baseBs / rates.PARALELO; break;
       case 'BINANCE': targetVal = baseBs / rates.BINANCE; break;
       case 'VES': targetVal = baseBs; break;
@@ -234,15 +243,15 @@ function DashboardView({ title, rates, hideMarketAnalysis = false }: { title: st
           )}
 
           <section className="space-y-6">
-            <h3 className="text-lg font-bold text-primary font-headline">Tasas Oficiales</h3>
+            <h3 className="text-lg font-bold text-primary font-headline">Tasas</h3>
             <div className="space-y-4">
-              {['BCV', 'PARALELO', 'BINANCE'].map(id => (
+              {['BCV', 'EURO', 'PARALELO', 'BINANCE'].map(id => (
                 <article key={id} className="p-4 bg-surface-container-low rounded-xl flex justify-between items-center border border-outline-variant/10">
                    <div className="flex items-center gap-3">
-                     <span className="material-symbols-outlined text-primary">{id === 'BCV' ? 'account_balance' : id === 'PARALELO' ? 'trending_up' : 'currency_exchange'}</span>
-                     <h4 className="font-bold text-primary text-sm">{id === 'BINANCE' ? 'Binance P2P' : id}</h4>
+                     <span className="material-symbols-outlined text-primary">{id === 'BCV' ? 'account_balance' : id === 'EURO' ? 'euro' : id === 'PARALELO' ? 'trending_up' : 'currency_exchange'}</span>
+                     <h4 className="font-bold text-primary text-sm">{id === 'BINANCE' ? 'Binance P2P' : id === 'EURO' ? 'Euro BCV' : id}</h4>
                    </div>
-                   <p className="font-bold text-primary">{rates[id].toLocaleString('es-VE', {minimumFractionDigits: 2})}</p>
+                   <p className="font-bold text-primary">{rates[id].toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 </article>
               ))}
             </div>
