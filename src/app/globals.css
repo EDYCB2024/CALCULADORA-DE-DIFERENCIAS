@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-secondary-fixed: #cbe7f5;
+  --color-outline: #747780;
+  --color-surface-container: #eceef1;
+  --color-surface: #f7f9fc;
+  --color-surface-variant: #e0e3e6;
+  --color-inverse-on-surface: #eff1f4;
+  --color-on-tertiary-fixed: #002108;
+  --color-error-container: #ffdad6;
+  --color-on-secondary-container: #4e6874;
+  --color-primary-fixed: #d6e3ff;
+  --color-on-primary-fixed: #001b3d;
+  --color-primary-container: #002b5b;
+  --color-secondary-container: #cbe7f5;
+  --color-on-tertiary-fixed-variant: #00531e;
+  --color-surface-dim: #d8dadd;
+  --color-error: #ba1a1a;
+  --color-on-surface-variant: #43474f;
+  --color-on-secondary: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-tertiary-fixed-dim: #3ce36a;
+  --color-surface-tint: #405f91;
+  --color-on-error: #ffffff;
+  --color-on-secondary-fixed-variant: #304a55;
+  --color-on-surface: #191c1e;
+  --color-surface-container-high: #e6e8eb;
+  --color-on-tertiary: #ffffff;
+  --color-surface-bright: #f7f9fc;
+  --color-on-background: #191c1e;
+  --color-inverse-primary: #a9c7ff;
+  --color-secondary: #48626e;
+  --color-surface-container-highest: #e0e3e6;
+  --color-surface-container-low: #f2f4f7;
+  --color-on-primary-fixed-variant: #264778;
+  --color-secondary-fixed-dim: #afcbd8;
+  --color-tertiary: #001d06;
+  --color-primary: #001736;
+  --color-inverse-surface: #2d3133;
+  --color-tertiary-fixed: #69ff87;
+  --color-on-tertiary-container: #00aa45;
+  --color-on-secondary-fixed: #021f29;
+  --color-on-primary-container: #7594ca;
+  --color-outline-variant: #c4c6d0;
+  --color-primary-fixed-dim: #a9c7ff;
+  --color-on-primary: #ffffff;
+  --color-background: #f7f9fc;
+  --color-on-error-container: #93000a;
+  --color-tertiary-container: #003410;
+
+  --font-headline: var(--font-manrope), 'Manrope', sans-serif;
+  --font-body: var(--font-inter), 'Inter', sans-serif;
+  --font-label: var(--font-inter), 'Inter', sans-serif;
+
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface min-h-screen text-base;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .glass-effect {
+    backdrop-filter: blur(24px);
+    background-color: rgba(224, 227, 230, 0.8);
+  }
+  .ambient-shadow {
+    box-shadow: 0 4px 20px rgba(0, 23, 54, 0.04), 0 10px 40px rgba(0, 23, 54, 0.08);
+  }
+}
