@@ -8,17 +8,19 @@ const CURRENCIES = [
   { id: 'EURO', name: 'Euro BCV', symbol: '€', icon: 'euro', desc: 'Tasa Oficial' },
   { id: 'PARALELO', name: 'Dólar Paralelo', symbol: '$', icon: 'trending_up', desc: 'Mercado No Oficial' },
   { id: 'PROMEDIO', name: 'Dólar Promedio', symbol: '$', icon: 'query_stats', desc: 'Media de Mercado' },
-  { id: 'BINANCE', name: 'Tether (Binance)', symbol: 'USDT', icon: 'currency_exchange', desc: 'Tasa P2P' },
+  { id: 'BINANCE', name: 'Binance P2P', symbol: '$', icon: 'currency_exchange', desc: 'Tasa Real' },
+  { id: 'PAYPAL', name: 'PayPal', symbol: '$', icon: 'payments', desc: 'Saldo -12%' },
 ];
 
 export default function CurrencyApp() {
   const [activeTab, setActiveTab] = useState<'PANEL' | 'CASHEA'>('PANEL');
   const [rates, setRates] = useState<Record<string, number>>({
-    BCV: 36.25,
-    EURO: 39.15,
-    PARALELO: 39.50,
-    PROMEDIO: 37.87,
-    BINANCE: 670,
+    BCV: 470.00,
+    EURO: 512.00,
+    PARALELO: 640.00,
+    PROMEDIO: 555.00,
+    BINANCE: 645.00,
+    PAYPAL: 563.20,
     VES: 1,
   });
   const [lastUpdate, setLastUpdate] = useState<string>('');
@@ -38,15 +40,39 @@ export default function CurrencyApp() {
 
     async function fetchRates() {
       try {
-        const [oficialRes, paraleloRes, euroRes] = await Promise.all([
+        const [oficialRes, paraleloRes, euroRes, marketDataRes] = await Promise.all([
           fetch('https://ve.dolarapi.com/v1/dolares/oficial'),
           fetch('https://ve.dolarapi.com/v1/dolares/paralelo'),
-          fetch('https://ve.dolarapi.com/v1/euros/oficial')
+          fetch('https://ve.dolarapi.com/v1/euros/oficial'),
+          fetch('/market-data.json').catch(() => null)
         ]);
+
         if (oficialRes.ok && paraleloRes.ok && euroRes.ok) {
           const oficial = await oficialRes.json();
           const paralelo = await paraleloRes.json();
           const euro = await euroRes.json();
+
+          let marketData = {
+            binance: { price: paralelo.promedio },
+            paypal: { price: paralelo.promedio * 0.88 }
+          };
+
+          if (marketDataRes && marketDataRes.ok) {
+            marketData = await marketDataRes.json();
+            console.log("Market Data Loaded:", marketData);
+          } else {
+            console.warn("Market Data file not found, trying Coinbase direct...");
+            try {
+              const cbRes = await fetch('https://api.coinbase.com/v2/prices/PYUSD-VES/spot');
+              if (cbRes.ok) {
+                const cbData = await cbRes.json();
+                marketData.paypal.price = parseFloat(cbData.data.amount);
+                console.log("PayPal updated from Coinbase direct:", marketData.paypal.price);
+              }
+            } catch (e) {
+              console.error("Coinbase direct fetch failed", e);
+            }
+          }
 
           const bestUpdateDate = paralelo.fechaActualizacion || oficial.fechaActualizacion;
           let dateStr = '';
@@ -64,10 +90,12 @@ export default function CurrencyApp() {
               BCV: oficial.promedio,
               PARALELO: paralelo.promedio,
               EURO: euro.promedio,
+              BINANCE: marketData.binance?.price ?? paralelo.promedio,
+              PAYPAL: marketData.paypal?.price ?? (paralelo.promedio * 0.88),
               PROMEDIO: (oficial.promedio + paralelo.promedio) / 2
             };
-            localStorage.setItem('currency_rates', JSON.stringify({ rates: updated, lastUpdate: dateStr }));
-            localStorage.setItem('currency_rates_time', now.toString());
+            localStorage.setItem('currency_rates_v2', JSON.stringify({ rates: updated, lastUpdate: dateStr }));
+            localStorage.setItem('currency_rates_time_v2', now.toString());
             return updated;
           });
         }
@@ -100,10 +128,9 @@ export default function CurrencyApp() {
               >
                 Calculadora Cashea
               </button>
-              <button className="text-slate-500 dark:text-slate-400 font-medium hover:text-blue-700 transition-colors cursor-pointer outline-none">Configuración</button>
             </nav>
             <div className="flex items-center gap-4">
-              <span className="material-symbols-outlined text-on-surface-variant cursor-pointer">notifications</span>
+              {/* Notificaciones (Ocultas por ahora) */}
             </div>
           </div>
         </div>
@@ -130,10 +157,6 @@ export default function CurrencyApp() {
           <span className="material-symbols-outlined">calculate</span>
           <span className="text-[10px] font-medium mt-1">Cashea</span>
         </button>
-        <button className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors cursor-pointer outline-none">
-          <span className="material-symbols-outlined">settings</span>
-          <span className="text-[10px] font-medium mt-1">Configuración</span>
-        </button>
       </nav>
     </>
   );
@@ -152,7 +175,8 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
       case 'EURO': return val * rates.EURO;
       case 'PARALELO': return val * rates.PARALELO;
       case 'PROMEDIO': return val * rates.PROMEDIO;
-      case 'BINANCE': return val * rates.BINANCE;
+      case 'BINANCE': return val * (rates.BINANCE ?? rates.PARALELO);
+      case 'PAYPAL': return val * (rates.PAYPAL ?? (rates.PARALELO * 0.88));
       case 'VES':
       default: return val;
     }
@@ -172,7 +196,8 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
       case 'EURO': targetVal = baseBs / rates.EURO; break;
       case 'PARALELO': targetVal = baseBs / rates.PARALELO; break;
       case 'PROMEDIO': targetVal = baseBs / rates.PROMEDIO; break;
-      case 'BINANCE': targetVal = baseBs / rates.BINANCE; break;
+      case 'BINANCE': targetVal = baseBs / (rates.BINANCE ?? rates.PARALELO); break;
+      case 'PAYPAL': targetVal = baseBs / (rates.PAYPAL ?? (rates.PARALELO * 0.88)); break;
       case 'VES': targetVal = baseBs; break;
     }
     return targetVal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -202,24 +227,24 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
           )}
         </section>
 
-        <div className="bg-surface-container-lowest p-8 rounded-xl ambient-shadow space-y-4 relative">
-          <button 
-            onClick={() => setInputValue('1.00')}
-            className="absolute top-6 right-6 p-2.5 bg-surface-container-low hover:bg-primary hover:text-white text-primary rounded-xl transition-all duration-300 opacity-60 hover:opacity-100 active:scale-90 shadow-sm border border-outline-variant/10 z-20 flex items-center gap-2 text-xs font-bold"
-            title="Restablecer a 1.00 USD"
-          >
-            <span className="material-symbols-outlined text-[20px]">refresh</span>
-            Reset a $1
-          </button>
+        <div className="bg-surface-container-lowest p-8 rounded-xl ambient-shadow space-y-6">
+          <div className="flex justify-end items-center">
+            <button
+              onClick={() => setInputValue('1.00')}
+              className="p-2.5 bg-surface-container-low hover:bg-primary hover:text-white text-primary rounded-xl transition-all duration-300 flex items-center justify-center border border-outline-variant/10 shadow-sm active:scale-90"
+              title="Restablecer a 1.00 USD"
+            >
+              <span className="material-symbols-outlined text-[20px]">refresh</span>
+            </button>
+          </div>
           <div className="flex flex-col gap-4">
             {CURRENCIES.map((currency) => (
-              <div 
+              <div
                 key={currency.id}
-                className={`relative flex flex-col sm:flex-row sm:items-center rounded-xl overflow-hidden transition-all duration-300 border ${
-                  activeCurrency === currency.id 
-                  ? 'border-primary ring-2 ring-primary/20 bg-surface-container-lowest shadow-sm z-10' 
+                className={`relative flex flex-col sm:flex-row sm:items-center rounded-xl overflow-hidden transition-all duration-300 border ${activeCurrency === currency.id
+                  ? 'border-primary ring-2 ring-primary/20 bg-surface-container-lowest shadow-sm z-10'
                   : 'border-transparent bg-surface-container-low hover:bg-surface-container-highest cursor-text'
-                }`}
+                  }`}
                 onClick={() => handleFocus(currency.id)}
               >
                 <div className="flex flex-row sm:flex-col justify-between sm:justify-center px-6 py-3 sm:py-4 sm:min-w-[180px] border-b sm:border-b-0 sm:border-r border-outline-variant/10 bg-surface-container-highest/30 sm:bg-transparent">
@@ -229,11 +254,10 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
                   </div>
                   <span className="text-[9px] sm:text-[10px] uppercase font-bold text-on-surface-variant flex items-center">{currency.desc}</span>
                 </div>
-                
-                <div className="flex-1 relative">
-                  <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold pointer-events-none transition-colors ${activeCurrency === currency.id ? 'text-primary' : 'text-on-surface-variant'}`}>{currency.symbol}</span>
+
+                <div className="flex-1 flex items-center justify-end px-6 group">
                   <input
-                    className="w-full h-full bg-transparent border-none py-4 sm:py-6 pl-10 pr-6 text-xl sm:text-2xl font-bold text-primary outline-none text-right placeholder-on-surface-variant/40"
+                    className="w-full bg-transparent border-none py-4 sm:py-6 text-xl sm:text-2xl font-bold text-primary outline-none text-right placeholder-on-surface-variant/40"
                     type="text"
                     placeholder="0,00"
                     value={getDisplayValue(currency.id)}
@@ -250,6 +274,7 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
                       setInputValue(val);
                     }}
                   />
+                  <span className={`ml-3 min-w-[2.5rem] text-right font-bold transition-colors ${activeCurrency === currency.id ? 'text-primary' : 'text-on-surface-variant'}`}>{currency.symbol}</span>
                 </div>
               </div>
             ))}
@@ -257,10 +282,12 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
 
           <div className="mt-8 pt-8 border-t border-outline-variant/15 flex flex-col md:flex-row justify-between items-start md:items-baseline gap-6">
             <div>
-              <p className="text-on-surface-variant text-sm font-medium mb-1">Indicador Rápido</p>
+              <p className="text-on-surface-variant text-xs font-bold tracking-widest uppercase mb-2">Indicador Rápido (Promedio General)</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-primary/60 font-headline">1 USD =</span>
-                <span className="text-4xl font-extrabold text-primary font-headline">{rates.BCV.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                <span className="text-xl font-bold text-primary/60 font-headline">Promedio =</span>
+                <span className="text-4xl font-extrabold text-primary font-headline">
+                  {((rates.BCV + rates.EURO + rates.PARALELO + rates.PROMEDIO + (rates.BINANCE ?? rates.PARALELO) + (rates.PAYPAL ?? 0)) / 6).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
                 <span className="text-xl font-bold text-primary/60 font-headline">Bs</span>
               </div>
             </div>
@@ -279,15 +306,28 @@ function DashboardView({ title, rates, lastUpdate }: { title: string, rates: Rec
         <section className="space-y-6">
           <h3 className="text-lg font-bold text-primary font-headline">Tasas</h3>
           <div className="space-y-4">
-            {['BCV', 'EURO', 'PARALELO', 'PROMEDIO', 'BINANCE'].map(id => (
+            {['BCV', 'EURO', 'PARALELO', 'PROMEDIO', 'BINANCE', 'PAYPAL'].map(id => (
               <article key={id} className="p-4 bg-surface-container-low rounded-xl flex justify-between items-center border border-outline-variant/10">
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-primary">
-                    {id === 'BCV' ? 'account_balance' : id === 'EURO' ? 'euro' : id === 'PARALELO' ? 'trending_up' : id === 'PROMEDIO' ? 'query_stats' : 'currency_exchange'}
+                    {id === 'BCV' ? 'account_balance' :
+                      id === 'EURO' ? 'euro' :
+                        id === 'PARALELO' ? 'trending_up' :
+                          id === 'PROMEDIO' ? 'query_stats' :
+                            id === 'ZELLE' ? 'send_money' :
+                              id === 'PAYPAL' ? 'payments' :
+                                'currency_exchange'}
                   </span>
-                  <h4 className="font-bold text-primary text-sm">{id === 'BINANCE' ? 'Binance P2P' : id === 'EURO' ? 'Euro BCV' : id === 'PROMEDIO' ? 'Dólar Promedio' : id}</h4>
+                  <h4 className="font-bold text-primary text-sm">
+                    {id === 'BINANCE' ? 'Binance P2P' :
+                      id === 'EURO' ? 'Euro BCV' :
+                        id === 'PROMEDIO' ? 'Dólar Promedio' :
+                          id === 'ZELLE' ? 'Zelle' :
+                            id === 'PAYPAL' ? 'PayPal' :
+                              id}
+                  </h4>
                 </div>
-                <p className="font-bold text-primary">{rates[id].toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="font-bold text-primary">{(rates[id] ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </article>
             ))}
           </div>
@@ -328,22 +368,22 @@ function CasheaView({ rates, lastUpdate }: { rates: Record<string, number>, last
           )}
         </section>
 
-        <div className="bg-surface-container-lowest p-8 rounded-xl ambient-shadow space-y-10 relative">
-          <button 
-            onClick={() => setCostUsd('1.00')}
-            className="absolute top-6 right-6 p-2.5 bg-surface-container-low hover:bg-primary hover:text-white text-primary rounded-xl transition-all duration-300 opacity-60 hover:opacity-100 active:scale-90 shadow-sm border border-outline-variant/10 z-20 flex items-center gap-2 text-xs font-bold"
-            title="Restablecer a 1.00 USD"
-          >
-            <span className="material-symbols-outlined text-[20px]">refresh</span>
-            Reset a $1
-          </button>
+        <div className="bg-surface-container-lowest p-8 rounded-xl ambient-shadow space-y-10">
+          <div className="flex justify-between items-center mb-[-1.5rem]">
+            <label className="block text-sm font-bold text-primary uppercase tracking-widest">Introduce el costo de tu producto (USD)</label>
+            <button
+              onClick={() => setCostUsd('1.00')}
+              className="p-2.5 bg-surface-container-low hover:bg-primary hover:text-white text-primary rounded-xl transition-all duration-300 flex items-center justify-center border border-outline-variant/10 shadow-sm active:scale-90"
+              title="Restablecer a 1.00 USD"
+            >
+              <span className="material-symbols-outlined text-[20px]">refresh</span>
+            </button>
+          </div>
           <div>
-            <label className="block text-sm font-bold text-primary uppercase tracking-widest mb-4">Introduce el costo de tu producto (USD)</label>
-            <div className="relative border-b-2 border-primary/20 focus-within:border-primary transition-colors">
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 text-4xl font-bold text-primary/40">$</span>
+            <div className="flex items-center justify-end border-b-2 border-primary/20 focus-within:border-primary transition-colors">
               <input
                 type="text"
-                className="w-full bg-transparent py-4 pl-10 text-5xl md:text-6xl font-black text-primary outline-none"
+                className="w-full bg-transparent py-4 text-5xl md:text-6xl font-black text-primary outline-none text-right"
                 value={getDisplayValue()}
                 onBlur={() => {
                   const numericVal = parseFloat(costUsd);
@@ -358,6 +398,7 @@ function CasheaView({ rates, lastUpdate }: { rates: Record<string, number>, last
                 }}
                 placeholder="0,00"
               />
+              <span className="ml-4 text-4xl font-bold text-primary/40">$</span>
             </div>
           </div>
 
@@ -426,9 +467,12 @@ function CasheaView({ rates, lastUpdate }: { rates: Record<string, number>, last
           <p className="text-sm leading-relaxed opacity-80 mb-6">
             Esta calculadora te permite comparar rápidamente cuánto deberías pagar en bolívares por un producto que tiene un precio fijado en dólares, evaluando las tres principales referencias del mercado venezolano.
           </p>
-          <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
-            <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Nota Importante</p>
-            <p className="text-xs text-on-surface-variant leading-tight">Cashea utiliza estrictamente la tasa del BCV del día para sus consumos y pagos.</p>
+          <div className="p-4 bg-yellow-400/10 rounded-xl border border-yellow-400/30 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-sm">info</span>
+              <p className="text-xs font-black text-yellow-700 dark:text-yellow-400 uppercase tracking-widest">Nota Importante</p>
+            </div>
+            <p className="text-xs text-yellow-900/70 dark:text-yellow-100/70 leading-relaxed font-medium">Cashea utiliza estrictamente la tasa del BCV del día para todos sus consumos y cronogramas de pagos.</p>
           </div>
         </section>
       </aside>

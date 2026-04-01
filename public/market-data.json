@@ -1,0 +1,19 @@
+{
+  "binance": {
+    "price": 652.52,
+    "isReal": true,
+    "lastUpdate": "2026-04-01T19:48:03.272Z"
+  },
+  "zelle": {
+    "price": 650.19,
+    "isReal": false,
+    "lastUpdate": "2026-04-01T19:48:03.272Z"
+  },
+  "paypal": {
+    "price": 473.29842650773287,
+    "isReal": true,
+    "source": "Coinbase API",
+    "lastUpdate": "2026-04-01T19:48:03.272Z"
+  },
+  "parallel_ref": 650.19
+}
